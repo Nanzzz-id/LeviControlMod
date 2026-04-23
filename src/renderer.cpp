@@ -1,1 +1,415 @@
+#include "renderer.h"
+#include <android/log.h>
+#include <cstring>
+#include <cmath>
+#include <vector>
+#include <string>
+
+#define TAG "LeviCtrl"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+
+Renderer g_renderer;
+
+// ─────────────────────────────
+//  FONT BITMAP 8x8 ASCII 32-127
+// ─────────────────────────────
+const uint8_t Renderer::FONT_DATA[96][8] = {
+    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00},
+    {0x18,0x3C,0x3C,0x18,0x18,0x00,0x18,0x00},
+    {0x36,0x36,0x00,0x00,0x00,0x00,0x00,0x00},
+    {0x36,0x36,0x7F,0x36,0x7F,0x36,0x36,0x00},
+    {0x0C,0x3E,0x03,0x1E,0x30,0x1F,0x0C,0x00},
+    {0x00,0x63,0x33,0x18,0x0C,0x66,0x63,0x00},
+    {0x1C,0x36,0x1C,0x6E,0x3B,0x33,0x6E,0x00},
+    {0x06,0x06,0x03,0x00,0x00,0x00,0x00,0x00},
+    {0x18,0x0C,0x06,0x06,0x06,0x0C,0x18,0x00},
+    {0x06,0x0C,0x18,0x18,0x18,0x0C,0x06,0x00},
+    {0x00,0x66,0x3C,0xFF,0x3C,0x66,0x00,0x00},
+    {0x00,0x0C,0x0C,0x3F,0x0C,0x0C,0x00,0x00},
+    {0x00,0x00,0x00,0x00,0x00,0x0C,0x0C,0x06},
+    {0x00,0x00,0x00,0x3F,0x00,0x00,0x00,0x00},
+    {0x00,0x00,0x00,0x00,0x00,0x0C,0x0C,0x00},
+    {0x60,0x30,0x18,0x0C,0x06,0x03,0x01,0x00},
+    {0x3E,0x63,0x73,0x7B,0x6F,0x67,0x3E,0x00},
+    {0x0C,0x0E,0x0C,0x0C,0x0C,0x0C,0x3F,0x00},
+    {0x1E,0x33,0x30,0x1C,0x06,0x33,0x3F,0x00},
+    {0x1E,0x33,0x30,0x1C,0x30,0x33,0x1E,0x00},
+    {0x38,0x3C,0x36,0x33,0x7F,0x30,0x78,0x00},
+    {0x3F,0x03,0x1F,0x30,0x30,0x33,0x1E,0x00},
+    {0x1C,0x06,0x03,0x1F,0x33,0x33,0x1E,0x00},
+    {0x3F,0x33,0x30,0x18,0x0C,0x0C,0x0C,0x00},
+    {0x1E,0x33,0x33,0x1E,0x33,0x33,0x1E,0x00},
+    {0x1E,0x33,0x33,0x3E,0x30,0x18,0x0E,0x00},
+    {0x00,0x0C,0x0C,0x00,0x00,0x0C,0x0C,0x00},
+    {0x00,0x0C,0x0C,0x00,0x00,0x0C,0x0C,0x06},
+    {0x18,0x0C,0x06,0x03,0x06,0x0C,0x18,0x00},
+    {0x00,0x00,0x3F,0x00,0x00,0x3F,0x00,0x00},
+    {0x06,0x0C,0x18,0x30,0x18,0x0C,0x06,0x00},
+    {0x1E,0x33,0x30,0x18,0x0C,0x00,0x0C,0x00},
+    {0x3E,0x63,0x7B,0x7B,0x7B,0x03,0x1E,0x00},
+    {0x0C,0x1E,0x33,0x33,0x3F,0x33,0x33,0x00},
+    {0x3F,0x66,0x66,0x3E,0x66,0x66,0x3F,0x00},
+    {0x3C,0x66,0x03,0x03,0x03,0x66,0x3C,0x00},
+    {0x1F,0x36,0x66,0x66,0x66,0x36,0x1F,0x00},
+    {0x7F,0x46,0x16,0x1E,0x16,0x46,0x7F,0x00},
+    {0x7F,0x46,0x16,0x1E,0x16,0x06,0x0F,0x00},
+    {0x3C,0x66,0x03,0x03,0x73,0x66,0x7C,0x00},
+    {0x33,0x33,0x33,0x3F,0x33,0x33,0x33,0x00},
+    {0x1E,0x0C,0x0C,0x0C,0x0C,0x0C,0x1E,0x00},
+    {0x78,0x30,0x30,0x30,0x33,0x33,0x1E,0x00},
+    {0x67,0x66,0x36,0x1E,0x36,0x66,0x67,0x00},
+    {0x0F,0x06,0x06,0x06,0x46,0x66,0x7F,0x00},
+    {0x63,0x77,0x7F,0x7F,0x6B,0x63,0x63,0x00},
+    {0x63,0x67,0x6F,0x7B,0x73,0x63,0x63,0x00},
+    {0x1C,0x36,0x63,0x63,0x63,0x36,0x1C,0x00},
+    {0x3F,0x66,0x66,0x3E,0x06,0x06,0x0F,0x00},
+    {0x1E,0x33,0x33,0x33,0x3B,0x1E,0x38,0x00},
+    {0x3F,0x66,0x66,0x3E,0x36,0x66,0x67,0x00},
+    {0x1E,0x33,0x07,0x0E,0x38,0x33,0x1E,0x00},
+    {0x3F,0x2D,0x0C,0x0C,0x0C,0x0C,0x1E,0x00},
+    {0x33,0x33,0x33,0x33,0x33,0x33,0x3F,0x00},
+    {0x33,0x33,0x33,0x33,0x33,0x1E,0x0C,0x00},
+    {0x63,0x63,0x63,0x6B,0x7F,0x77,0x63,0x00},
+    {0x63,0x63,0x36,0x1C,0x1C,0x36,0x63,0x00},
+    {0x33,0x33,0x33,0x1E,0x0C,0x0C,0x1E,0x00},
+    {0x7F,0x63,0x31,0x18,0x4C,0x66,0x7F,0x00},
+    {0x1E,0x06,0x06,0x06,0x06,0x06,0x1E,0x00},
+    {0x03,0x06,0x0C,0x18,0x30,0x60,0x40,0x00},
+    {0x1E,0x18,0x18,0x18,0x18,0x18,0x1E,0x00},
+    {0x08,0x1C,0x36,0x63,0x00,0x00,0x00,0x00},
+    {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0xFF},
+    {0x0C,0x0C,0x18,0x00,0x00,0x00,0x00,0x00},
+    {0x00,0x00,0x1E,0x30,0x3E,0x33,0x6E,0x00},
+    {0x07,0x06,0x06,0x3E,0x66,0x66,0x3B,0x00},
+    {0x00,0x00,0x1E,0x33,0x03,0x33,0x1E,0x00},
+    {0x38,0x30,0x30,0x3E,0x33,0x33,0x6E,0x00},
+    {0x00,0x00,0x1E,0x33,0x3F,0x03,0x1E,0x00},
+    {0x1C,0x36,0x06,0x0F,0x06,0x06,0x0F,0x00},
+    {0x00,0x00,0x6E,0x33,0x33,0x3E,0x30,0x1F},
+    {0x07,0x06,0x36,0x6E,0x66,0x66,0x67,0x00},
+    {0x0C,0x00,0x0E,0x0C,0x0C,0x0C,0x1E,0x00},
+    {0x30,0x00,0x30,0x30,0x30,0x33,0x33,0x1E},
+    {0x07,0x06,0x66,0x36,0x1E,0x36,0x67,0x00},
+    {0x0E,0x0C,0x0C,0x0C,0x0C,0x0C,0x1E,0x00},
+    {0x00,0x00,0x33,0x7F,0x7F,0x6B,0x63,0x00},
+    {0x00,0x00,0x1F,0x33,0x33,0x33,0x33,0x00},
+    {0x00,0x00,0x1E,0x33,0x33,0x33,0x1E,0x00},
+    {0x00,0x00,0x3B,0x66,0x66,0x3E,0x06,0x0F},
+    {0x00,0x00,0x6E,0x33,0x33,0x3E,0x30,0x78},
+    {0x00,0x00,0x3B,0x6E,0x66,0x06,0x0F,0x00},
+    {0x00,0x00,0x3E,0x03,0x1E,0x30,0x1F,0x00},
+    {0x08,0x0C,0x3E,0x0C,0x0C,0x2C,0x18,0x00},
+    {0x00,0x00,0x33,0x33,0x33,0x33,0x6E,0x00},
+    {0x00,0x00,0x33,0x33,0x33,0x1E,0x0C,0x00},
+    {0x00,0x00,0x63,0x6B,0x7F,0x7F,0x36,0x00},
+    {0x00,0x00,0x63,0x36,0x1C,0x36,0x63,0x00},
+    {0x00,0x00,0x33,0x33,0x33,0x3E,0x30,0x1F},
+    {0x00,0x00,0x3F,0x19,0x0C,0x26,0x3F,0x00},
+    {0x38,0x0C,0x0C,0x07,0x0C,0x0C,0x38,0x00},
+    {0x18,0x18,0x18,0x00,0x18,0x18,0x18,0x00},
+    {0x07,0x0C,0x0C,0x38,0x0C,0x0C,0x07,0x00},
+    {0x6E,0x3B,0x00,0x00,0x00,0x00,0x00,0x00},
+    {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF},
+};
+
+// ─────────────────────────────
+//  SHADER SOURCE
+// ─────────────────────────────
+static const char* VERT = R"(#version 300 es
+layout(location=0) in vec2 aPos;
+layout(location=1) in vec2 aUV;
+uniform vec2 uRes;
+out vec2 vUV;
+void main(){
+    vec2 n=(aPos/uRes)*2.0-1.0; n.y=-n.y;
+    gl_Position=vec4(n,0,1); vUV=aUV;
+})";
+
+static const char* FRAG_SOLID = R"(#version 300 es
+precision mediump float;
+uniform vec4 uCol;
+out vec4 fc;
+void main(){ fc=uCol; })";
+
+static const char* FRAG_TEXT = R"(#version 300 es
+precision mediump float;
+in vec2 vUV;
+uniform sampler2D uTex;
+uniform vec4 uCol;
+out vec4 fc;
+void main(){
+    float a=texture(uTex,vUV).r;
+    fc=vec4(uCol.rgb, uCol.a*a);
+})";
+
+// ─────────────────────────────
+//  COMPILE SHADER
+// ─────────────────────────────
+GLuint Renderer::compileShader(GLenum type, const char* src) {
+    GLuint s = glCreateShader(type);
+    glShaderSource(s, 1, &src, nullptr);
+    glCompileShader(s);
+    GLint ok; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+    if (!ok) {
+        char buf[512]; glGetShaderInfoLog(s,512,nullptr,buf);
+        LOGE("Shader: %s", buf); glDeleteShader(s); return 0;
+    }
+    return s;
+}
+
+GLuint Renderer::createProgram(const char* vert, const char* frag) {
+    GLuint v=compileShader(GL_VERTEX_SHADER,vert);
+    GLuint f=compileShader(GL_FRAGMENT_SHADER,frag);
+    if (!v||!f) return 0;
+    GLuint p=glCreateProgram();
+    glAttachShader(p,v); glAttachShader(p,f);
+    glLinkProgram(p);
+    glDeleteShader(v); glDeleteShader(f);
+    return p;
+}
+
+// ─────────────────────────────
+//  FONT TEXTURE
+// ─────────────────────────────
+void Renderer::buildFontTexture() {
+    const int NC=96, CW=8, CH=8;
+    std::vector<uint8_t> tex(NC*CW*CH, 0);
+    for (int c=0;c<NC;c++)
+        for (int row=0;row<CH;row++) {
+            uint8_t bits=FONT_DATA[c][row];
+            for (int col=0;col<CW;col++)
+                if ((bits>>(7-col))&1)
+                    tex[row*(NC*CW)+c*CW+col]=255;
+        }
+    glGenTextures(1,&m_font_tex);
+    glBindTexture(GL_TEXTURE_2D,m_font_tex);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_R8,NC*CW,CH,0,GL_RED,GL_UNSIGNED_BYTE,tex.data());
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D,0);
+}
+
+// ─────────────────────────────
+//  INIT
+// ─────────────────────────────
+bool Renderer::init(int w, int h) {
+    m_sw=w; m_sh=h;
+    m_prog_solid=createProgram(VERT,FRAG_SOLID);
+    m_prog_text =createProgram(VERT,FRAG_TEXT);
+    if (!m_prog_solid||!m_prog_text) return false;
+    glGenVertexArrays(1,&m_vao);
+    glGenBuffers(1,&m_vbo);
+    glBindVertexArray(m_vao);
+    glBindBuffer(GL_ARRAY_BUFFER,m_vbo);
+    glBufferData(GL_ARRAY_BUFFER,sizeof(float)*24,nullptr,GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0,2,GL_FLOAT,GL_FALSE,4*sizeof(float),(void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1,2,GL_FLOAT,GL_FALSE,4*sizeof(float),(void*)(2*sizeof(float)));
+    glBindVertexArray(0);
+    buildFontTexture();
+    m_ready=true;
+    LOGI("Renderer init %dx%d", w, h);
+    return true;
+}
+
+void Renderer::resize(int w, int h) { m_sw=w; m_sh=h; }
+
+void Renderer::uploadQuad(float* v) {
+    glBindVertexArray(m_vao);
+    glBindBuffer(GL_ARRAY_BUFFER,m_vbo);
+    glBufferSubData(GL_ARRAY_BUFFER,0,sizeof(float)*24,v);
+    glDrawArrays(GL_TRIANGLES,0,6);
+    glBindVertexArray(0);
+}
+
+// ─────────────────────────────
+//  DRAW RECT
+// ─────────────────────────────
+void Renderer::drawRect(float x,float y,float w,float h,const Color& c) {
+    glUseProgram(m_prog_solid);
+    glUniform2f(glGetUniformLocation(m_prog_solid,"uRes"),(float)m_sw,(float)m_sh);
+    glUniform4f(glGetUniformLocation(m_prog_solid,"uCol"),c.r,c.g,c.b,c.a);
+    float v[24]={x,y,0,0, x+w,y,1,0, x,y+h,0,1,
+                 x+w,y,1,0, x+w,y+h,1,1, x,y+h,0,1};
+    uploadQuad(v);
+}
+
+// ─────────────────────────────
+//  DRAW CIRCLE (via segmented triangles)
+// ─────────────────────────────
+void Renderer::drawCircle(float cx,float cy,float r,const Color& c,int seg) {
+    glUseProgram(m_prog_solid);
+    glUniform2f(glGetUniformLocation(m_prog_solid,"uRes"),(float)m_sw,(float)m_sh);
+    glUniform4f(glGetUniformLocation(m_prog_solid,"uCol"),c.r,c.g,c.b,c.a);
+
+    std::vector<float> verts;
+    verts.reserve(seg*12);
+    for (int i=0;i<seg;i++) {
+        float a0 = (float)i     / seg * 2*M_PI;
+        float a1 = (float)(i+1) / seg * 2*M_PI;
+        // Triangle: center, p0, p1
+        verts.push_back(cx);           verts.push_back(cy);           verts.push_back(0); verts.push_back(0);
+        verts.push_back(cx+cosf(a0)*r); verts.push_back(cy+sinf(a0)*r); verts.push_back(0); verts.push_back(0);
+        verts.push_back(cx+cosf(a1)*r); verts.push_back(cy+sinf(a1)*r); verts.push_back(0); verts.push_back(0);
+    }
+    glBindVertexArray(m_vao);
+    glBindBuffer(GL_ARRAY_BUFFER,m_vbo);
+    glBufferData(GL_ARRAY_BUFFER,verts.size()*sizeof(float),verts.data(),GL_DYNAMIC_DRAW);
+    glDrawArrays(GL_TRIANGLES,0,(GLsizei)(verts.size()/4));
+    // Restore buffer size
+    glBufferData(GL_ARRAY_BUFFER,sizeof(float)*24,nullptr,GL_DYNAMIC_DRAW);
+    glBindVertexArray(0);
+}
+
+// ─────────────────────────────
+//  DRAW RING (lingkaran berongga)
+// ─────────────────────────────
+void Renderer::drawRing(float cx,float cy,float r,float t,const Color& c,int seg) {
+    drawCircle(cx,cy,r,c,seg);
+    Color inner=c; inner.a=0;
+    // Tutup bagian dalam dengan warna transparan
+    Color bg{0,0,0,0};
+    drawCircle(cx,cy,r-t,bg,seg);
+}
+
+// ─────────────────────────────
+//  DRAW TEXT
+// ─────────────────────────────
+void Renderer::drawText(const char* text,float x,float y,float scale,const Color& c) {
+    if (!m_ready) return;
+    const int NC=96,CW=8,CH=8;
+    float cw=CW*scale, ch=CH*scale;
+    float texW=(float)(NC*CW);
+
+    glUseProgram(m_prog_text);
+    glUniform2f(glGetUniformLocation(m_prog_text,"uRes"),(float)m_sw,(float)m_sh);
+    glUniform4f(glGetUniformLocation(m_prog_text,"uCol"),c.r,c.g,c.b,c.a);
+    glUniform1i(glGetUniformLocation(m_prog_text,"uTex"),0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D,m_font_tex);
+
+    float px=x;
+    for (int i=0;text[i];i++) {
+        int idx=(int)text[i]-32;
+        if (idx<0||idx>=NC){px+=cw;continue;}
+        float u0=(float)(idx*CW)/texW, u1=(float)(idx*CW+CW)/texW;
+        float v[24]={
+            px,   y,    u0,0, px+cw,y,   u1,0, px,   y+ch,u0,1,
+            px+cw,y,    u1,0, px+cw,y+ch,u1,1, px,   y+ch,u0,1,
+        };
+        uploadQuad(v);
+        px+=cw;
+    }
+    glBindTexture(GL_TEXTURE_2D,0);
+}
+
+float Renderer::textWidth(const char* text,float scale) {
+    return strlen(text)*8.0f*scale;
+}
+
+// ─────────────────────────────
+//  DRAW BUTTON
+// ─────────────────────────────
+void Renderer::drawButton(const VButton& b, bool edit) {
+    if (!b.visible) return;
+    float r = b.size/2.0f;
+
+    // Shadow
+    drawCircle(b.x+3,b.y+3,r,{0,0,0,0.4f});
+
+    // Body
+    Color body = b.pressed ? b.color_pressed : b.color_idle;
+    if (edit) body.a = 0.5f + 0.3f*sinf((float)clock()/200.0f); // efek pulse di edit mode
+    drawCircle(b.x,b.y,r,body);
+
+    // Border
+    drawRing(b.x,b.y,r,3.0f,{1,1,1,edit?0.9f:0.4f});
+
+    // Label
+    float sc = r*0.35f/8.0f;
+    float tw = textWidth(b.label.c_str(),sc);
+    drawText(b.label.c_str(),
+             b.x-tw/2.0f,
+             b.y-4.0f*sc,
+             sc, b.color_label);
+}
+
+// ─────────────────────────────
+//  DRAW JOYSTICK
+// ─────────────────────────────
+void Renderer::drawJoystick(const Joystick& js, bool edit) {
+    // Base ring
+    Color base_c{0.2f,0.2f,0.2f,0.6f};
+    if (edit) base_c.a = 0.4f+0.3f*sinf((float)clock()/200.0f);
+    drawCircle(js.cx,js.cy,js.base_radius,base_c);
+    drawRing(js.cx,js.cy,js.base_radius,4.0f,{1,1,1,edit?0.9f:0.35f});
+
+    // WASD label hints di sekeliling
+    float sc=2.2f;
+    float lr=js.base_radius*0.72f;
+    Color lc{1,1,1,0.55f};
+    drawText("W", js.cx - textWidth("W",sc)/2, js.cy-lr-8*sc,    sc, lc);
+    drawText("S", js.cx - textWidth("S",sc)/2, js.cy+lr,         sc, lc);
+    drawText("A", js.cx - lr - 8*sc,           js.cy - 4*sc,     sc, lc);
+    drawText("D", js.cx + lr,                  js.cy - 4*sc,     sc, lc);
+
+    // Knob
+    float kx = js.active ? js.knob_x : js.cx;
+    float ky = js.active ? js.knob_y : js.cy;
+    drawCircle(kx+2,ky+2,js.knob_radius,{0,0,0,0.4f});
+    Color knob_c = js.active ? Color{0.4f,0.8f,1.0f,0.92f} : Color{0.7f,0.7f,0.7f,0.85f};
+    drawCircle(kx,ky,js.knob_radius,knob_c);
+    drawRing(kx,ky,js.knob_radius,2.5f,{1,1,1,0.6f});
+}
+
+// ─────────────────────────────
+//  DRAW CURSOR MOUSE
+// ─────────────────────────────
+void Renderer::drawCursor(const VirtualMouse& m) {
+    float x=m.cx, y=m.cy;
+    float sz=22.0f;
+
+    // Bayangan
+    drawRect(x+2,y+2,sz*0.18f,sz,{0,0,0,0.35f});
+    drawRect(x+2,y+2,sz,sz*0.18f,{0,0,0,0.35f});
+
+    // Kursor putih
+    drawRect(x,y,sz*0.18f,sz,{1,1,1,0.95f});
+    drawRect(x,y,sz,sz*0.18f,{1,1,1,0.95f});
+
+    // Titik tengah
+    drawCircle(x,y,3.5f,{1,1,1,1.0f});
+    drawCircle(x,y,2.0f,{0.3f,0.6f,1.0f,1.0f});
+
+    // Indikator klik kiri/kanan
+    if (m.left_down)
+        drawCircle(x-10,y+sz+8,6,{1,0.3f,0.3f,0.9f});
+    if (m.right_down)
+        drawCircle(x+10,y+sz+8,6,{0.3f,0.3f,1.0f,0.9f});
+}
+
+// ─────────────────────────────
+//  DRAW LOOK AREA HINT
+// ─────────────────────────────
+void Renderer::drawLookArea(float startX) {
+    // Garis batas tipis
+    drawRect(startX,0,2,(float)m_sh,{1,1,1,0.08f});
+    // Label
+    Color lc{1,1,1,0.12f};
+    drawText("LOOK", startX+8, m_sh/2.0f-20, 2.5f, lc);
+}
+
+// ─────────────────────────────
+//  DRAW EDIT BAR
+// ─────────────────────────────
+void Renderer::drawEditBar() {
+    // Bar merah di atas
+    drawRect(0,0,(float)m_sw,44,{0.8f,0.1f,0.1f,0.88f});
+    float sc=3.0f;
+    std::string msg = "EDIT MODE - Drag tombol untuk pindahkan";
+    float tw=textWidth(msg.c_str(),sc);
+    drawText(msg.c_str(),(m_sw-tw)/2.0f,12,sc,Colors::WHITE);
+}
 
