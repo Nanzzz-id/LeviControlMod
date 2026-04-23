@@ -31,4 +31,5 @@ target_link_options(LeviControlMod PRIVATE
     -Wl,--gc-sections
     -Wl,--strip-all
     -Wl,--allow-shlib-undefined
+    -Wl,--unresolved-symbols=ignore-all
 )
