@@ -30,4 +30,5 @@ target_compile_options(LeviControlMod PRIVATE
 target_link_options(LeviControlMod PRIVATE
     -Wl,--gc-sections
     -Wl,--strip-all
+    -Wl,--allow-shlib-undefined
 )
