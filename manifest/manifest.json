@@ -1,1 +1,9 @@
 
+{
+    "name": "LeviControlMod",
+    "version": "1.0.0",
+    "author": "Nanzzz",
+    "description": "Virtual WASD joystick + mouse + custom buttons overlay for MCBE",
+    "entry": "libLeviControlMod.so",
+    "target": "com.mojang.minecraftpe"
+}
